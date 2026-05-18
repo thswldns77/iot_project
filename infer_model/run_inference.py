@@ -128,8 +128,8 @@ class TFLiteClassifier:
 
     def _prepare_input(self, rgb: np.ndarray) -> np.ndarray:
         dtype = self._input["dtype"]
+        data = self._normalize(rgb)
         if np.issubdtype(dtype, np.integer):
-            data = rgb.astype(np.float32)
             scale, zero_point = self._input.get("quantization", (0.0, 0))
             if scale and scale > 0:
                 data = (data / scale) + zero_point
@@ -137,16 +137,17 @@ class TFLiteClassifier:
             data = np.clip(np.round(data), info.min, info.max)
             return np.expand_dims(data.astype(dtype), axis=0)
 
+        return np.expand_dims(data, axis=0).astype(dtype)
+
+    def _normalize(self, rgb: np.ndarray) -> np.ndarray:
         data = rgb.astype(np.float32)
         if self._normalization == "zero_one":
-            data = data / 255.0
-        elif self._normalization == "minus_one_one":
-            data = (data / 127.5) - 1.0
-        elif self._normalization == "raw":
-            pass
-        else:
-            raise ValueError(f"Unknown normalization: {self._normalization}")
-        return np.expand_dims(data, axis=0).astype(dtype)
+            return data / 255.0
+        if self._normalization == "minus_one_one":
+            return (data / 127.5) - 1.0
+        if self._normalization == "raw":
+            return data
+        raise ValueError(f"Unknown normalization: {self._normalization}")
 
     @staticmethod
     def _dequantize_if_needed(output: np.ndarray, detail: dict) -> np.ndarray:
