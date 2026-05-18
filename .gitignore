@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+train_model/datasets/raw/
+train_model/datasets/processed/
+train_model/outputs/
+
+*.keras
+*.h5
+*.pt
+*.onnx
