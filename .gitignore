@@ -1,13 +1,21 @@
 __pycache__/
 *.pyc
+.DS_Store
 .venv/
 venv/
 
 train_model/datasets/raw/
 train_model/datasets/processed/
+train_model/datasets/Processed_Dataset/
+train_model/datasets/eye_state_128/
+train_model/datasets/mouth_state_128/
+train_model/datasets/preprocessed_data/
 train_model/outputs/
+outputs/
+*.log
 
 *.keras
 *.h5
 *.pt
 *.onnx
+*.tflite
