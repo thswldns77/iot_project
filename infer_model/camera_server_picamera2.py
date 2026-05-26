@@ -16,7 +16,7 @@ from http import server
 from threading import Condition
 
 from picamera2 import Picamera2
-from picamera2.encoders import MJPEGEncoder
+from picamera2.encoders import JpegEncoder
 from picamera2.outputs import FileOutput
 
 
@@ -112,16 +112,25 @@ def main() -> None:
     stream_url = f"http://{args.host}:{args.port}/stream.mjpg"
     logging.info("Starting Picamera2 MJPEG server at %s", stream_url)
 
+    recording = False
     try:
         picam2.start_recording(
-            MJPEGEncoder(q=args.quality),
+            JpegEncoder(q=args.quality),
             FileOutput(output),
         )
+        recording = True
+        logging.info("Picamera2 is recording; waiting for MJPEG clients")
         httpd.serve_forever()
+    except KeyboardInterrupt:
+        logging.info("Interrupted by user")
+    except Exception:
+        logging.exception("Picamera2 MJPEG server failed")
+        raise
     finally:
         logging.info("Stopping Picamera2 MJPEG server")
-        httpd.shutdown()
-        picam2.stop_recording()
+        if recording:
+            picam2.stop_recording()
+        httpd.server_close()
 
 
 if __name__ == "__main__":
