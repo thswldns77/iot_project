@@ -453,9 +453,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--head-drop-deg", type=float, default=15.0)
     parser.add_argument("--head-sign", choices=("either", "positive", "negative"), default="either")
     parser.add_argument("--calibration-sec", type=float, default=2.0)
+    parser.add_argument("--enable-head", dest="disable_head", action="store_false")
+    parser.add_argument("--disable-head", dest="disable_head", action="store_true")
+    parser.set_defaults(disable_head=True)
 
-    parser.add_argument("--eye-sec", type=float, default=1.0)
-    parser.add_argument("--yawn-sec", type=float, default=2.0)
+    parser.add_argument("--eye-sec", type=float, default=2.0)
+    parser.add_argument("--yawn-sec", type=float, default=3.0)
     parser.add_argument("--head-sec", type=float, default=1.5)
     parser.add_argument("--window-sec", type=float, default=5.0)
     parser.add_argument("--perclos-threshold", type=float, default=0.45)
@@ -551,19 +554,20 @@ def main() -> None:
                     right_ear = eye_aspect_ratio(landmarks, RIGHT_EYE, width, height)
                     ear = (left_ear + right_ear) / 2.0
                     mar = mouth_aspect_ratio(landmarks, width, height)
-                    pitch, _, _ = head_pose_degrees(landmarks, width, height)
+                    if not args.disable_head:
+                        pitch, _, _ = head_pose_degrees(landmarks, width, height)
 
-                    if baseline_pitch is None:
-                        if calibration_started_at is None:
-                            calibration_started_at = now
-                            calibration_pitches.clear()
-                        if now - calibration_started_at <= args.calibration_sec:
-                            calibration_pitches.append(pitch)
-                        elif calibration_pitches:
-                            baseline_pitch = statistics.median(calibration_pitches)
-                    else:
-                        delta_pitch = pitch - baseline_pitch
-                        head_down = is_head_down(delta_pitch, args)
+                        if baseline_pitch is None:
+                            if calibration_started_at is None:
+                                calibration_started_at = now
+                                calibration_pitches.clear()
+                            if now - calibration_started_at <= args.calibration_sec:
+                                calibration_pitches.append(pitch)
+                            elif calibration_pitches:
+                                baseline_pitch = statistics.median(calibration_pitches)
+                        else:
+                            delta_pitch = pitch - baseline_pitch
+                            head_down = is_head_down(delta_pitch, args)
 
                     if args.rule_only:
                         eye_closed = ear < args.rule_ear_threshold
@@ -608,7 +612,7 @@ def main() -> None:
                 status = "DROWSY" if drowsy else "AWAKE"
                 if not face_found:
                     status = "NO FACE"
-                elif baseline_pitch is None:
+                elif not args.disable_head and baseline_pitch is None:
                     status = "CALIBRATING"
 
                 servo.set_active(status == "DROWSY", now)

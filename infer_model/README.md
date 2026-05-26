@@ -47,11 +47,10 @@ Runtime flow:
 3. Crop eye and mouth regions from landmark coordinates
 4. Send eye crops to eye_state_model.tflite
 5. Send mouth crops to mouth_state_model.tflite
-6. Estimate head pitch from MediaPipe landmarks
-7. Accumulate eye closure, yawning, and head-drop states over time
-8. Change status to DROWSY when a condition is sustained
-9. Move the SG90 servo on GPIO 18 when status is DROWSY
-10. Return the servo to 0 degrees when status is not DROWSY
+6. Accumulate eye closure and yawning states over time
+7. Change status to DROWSY when a condition is sustained
+8. Move the SG90 servo on GPIO 18 when status is DROWSY
+9. Return the servo to 0 degrees when status is not DROWSY
 ```
 
 The system does not classify drowsiness from a single frame. It accumulates
@@ -60,11 +59,12 @@ state over a short time window.
 Default drowsiness conditions:
 
 ```text
-Eye closed for 1.0 second or longer
-or mouth open/yawn for 2.0 seconds or longer
-or head dropped for 1.5 seconds or longer
+Eye closed for 2.0 seconds or longer
+or mouth open/yawn for 3.0 seconds or longer
 or eye-closed ratio over the last 5 seconds is 45% or higher
 ```
+
+Head-drop detection is disabled by default. Add `--enable-head` to use it.
 
 ## Component Roles
 
@@ -73,7 +73,7 @@ NoIR camera
 Captures the driver's face in real time.
 
 MediaPipe
-Extracts face landmarks, eye/mouth crop positions, and head-pose information.
+Extracts face landmarks and eye/mouth crop positions.
 
 eye_state_model.tflite
 Classifies an eye crop as open or closed.
@@ -177,17 +177,17 @@ source .venv/bin/activate
 python run_inference.py --source picamera2 --mirror --servo-pin 18 --rule-only
 ```
 
-This mode uses MediaPipe-derived EAR, MAR, and head-pose rules instead of
-trained models.
+This mode uses MediaPipe-derived EAR and MAR rules instead of trained models.
+Head-pose rules are used only when `--enable-head` is added.
 
 ```text
 EAR: eye-closure ratio
 MAR: mouth-opening ratio
-Pitch delta: head-drop angle change
+Pitch delta: head-drop angle change, only with --enable-head
 ```
 
-Look straight at the camera for the first two seconds. The script uses that
-period as the head-pose baseline.
+When `--enable-head` is used, look straight at the camera for the first two
+seconds. The script uses that period as the head-pose baseline.
 
 ## Run With Trained Models
 
@@ -247,7 +247,7 @@ The display shows:
 Status: AWAKE / DROWSY / NO FACE / CALIBRATING
 Eye prob: probability of eye closed
 Mouth prob: probability of yawn/open mouth
-Pitch delta: head angle change from baseline
+Pitch delta: head angle change from baseline, only active with --enable-head
 PERCLOS-ish: eye-closed ratio over the recent time window
 ```
 
@@ -293,10 +293,12 @@ python run_inference.py --source picamera2 --mirror --servo-pin 18 \
   --mouth-threshold 0.7
 ```
 
-Raise the head-drop angle if head-drop detection is too sensitive:
+Head-drop detection is disabled by default. Enable it only if you want to use
+head pitch as an additional signal:
 
 ```bash
 python run_inference.py --source picamera2 --mirror --servo-pin 18 \
+  --enable-head \
   --head-drop-deg 20
 ```
 
@@ -304,9 +306,9 @@ Make the drowsiness decision stricter:
 
 ```bash
 python run_inference.py --source picamera2 --mirror --servo-pin 18 \
-  --eye-sec 1.5 \
-  --yawn-sec 3.0 \
-  --head-sec 2.0
+  --eye-sec 2.5 \
+  --yawn-sec 3.5 \
+  --perclos-threshold 0.6
 ```
 
 Run without a GUI window and print logs instead:
@@ -346,7 +348,7 @@ Raspberry Pi workflow:
 1. Read NoIR camera frames
 2. Extract landmarks with MediaPipe
 3. Run TFLite models for eye/mouth state
-4. Combine head pose and time-window conditions
+4. Combine time-window conditions
 5. Move the servo when status is DROWSY
 ```
 
