@@ -18,6 +18,7 @@ NoIR camera -> MediaPipe -> TFLite inference -> drowsiness decision -> servo ale
 
 ```text
 infer_model/
+  camera_server_picamera2.py
   run_inference.py
   requirements.txt
   README.md
@@ -202,6 +203,42 @@ Then run:
 ```bash
 source .venv/bin/activate
 python run_inference.py --source picamera2 --mirror --servo-pin 18
+```
+
+## Run With Split Python Environments
+
+Use this mode when the system Python can import `picamera2`, but the Python
+3.11 virtual environment is needed for `mediapipe` and `tflite-runtime`.
+
+```text
+Terminal 1: system Python 3.13
+Picamera2 -> local MJPEG stream
+
+Terminal 2: Python 3.11 .venv
+MJPEG stream -> MediaPipe -> TFLite -> drowsiness decision
+```
+
+Terminal 1, without activating `.venv`:
+
+```bash
+cd ~/iot_project/infer_model
+python3 camera_server_picamera2.py --host 127.0.0.1 --port 8000 --width 640 --height 480 --fps 30
+```
+
+Keep Terminal 1 running. Then open another terminal.
+
+Terminal 2, with the Python 3.11 virtual environment:
+
+```bash
+cd ~/iot_project/infer_model
+source .venv/bin/activate
+python run_inference.py --source mjpeg --stream-url http://127.0.0.1:8000/stream.mjpg --mirror --servo-pin 18
+```
+
+To test without the servo:
+
+```bash
+python run_inference.py --source mjpeg --stream-url http://127.0.0.1:8000/stream.mjpg --mirror
 ```
 
 The display shows:

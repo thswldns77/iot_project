@@ -73,6 +73,22 @@ class OpenCVCameraSource:
         self._cap.release()
 
 
+class MjpegStreamSource:
+    def __init__(self, stream_url: str) -> None:
+        self._cap = cv2.VideoCapture(stream_url)
+        if not self._cap.isOpened():
+            raise RuntimeError(f"Unable to open MJPEG stream: {stream_url}")
+
+    def read(self) -> Tuple[bool, np.ndarray]:
+        ok, bgr = self._cap.read()
+        if not ok:
+            return False, bgr
+        return True, cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+
+    def release(self) -> None:
+        self._cap.release()
+
+
 class TFLiteClassifier:
     def __init__(
         self,
@@ -255,6 +271,8 @@ def make_camera(args: argparse.Namespace):
         return PiCameraSource(args.width, args.height, args.fps)
     if args.source == "opencv":
         return OpenCVCameraSource(args.camera_id, args.width, args.height, args.fps)
+    if args.source == "mjpeg":
+        return MjpegStreamSource(args.stream_url)
     try:
         return PiCameraSource(args.width, args.height, args.fps)
     except Exception as exc:
@@ -407,8 +425,9 @@ def put_line(frame: np.ndarray, text: str, y: int, color: Tuple[int, int, int]) 
 def parse_args() -> argparse.Namespace:
     base_dir = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description="Raspberry Pi drowsiness inference")
-    parser.add_argument("--source", choices=("auto", "picamera2", "opencv"), default="auto")
+    parser.add_argument("--source", choices=("auto", "picamera2", "opencv", "mjpeg"), default="auto")
     parser.add_argument("--camera-id", type=int, default=0)
+    parser.add_argument("--stream-url", default="http://127.0.0.1:8000/stream.mjpg")
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--fps", type=int, default=30)
