@@ -439,8 +439,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mouth-model", type=Path, default=base_dir / "models" / "mouth_state_model.tflite")
     parser.add_argument("--eye-closed-index", type=int, default=1)
     parser.add_argument("--mouth-yawn-index", type=int, default=1)
-    parser.add_argument("--eye-threshold", type=float, default=0.6)
-    parser.add_argument("--mouth-threshold", type=float, default=0.6)
+    parser.add_argument("--eye-threshold", type=float, default=0.8)
+    parser.add_argument("--mouth-threshold", type=float, default=0.8)
     parser.add_argument(
         "--input-normalization",
         choices=("zero_one", "minus_one_one", "raw"),

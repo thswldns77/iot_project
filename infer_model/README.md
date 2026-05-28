@@ -289,8 +289,8 @@ Raise thresholds if the eye or mouth model is too sensitive:
 
 ```bash
 python run_inference.py --source picamera2 --mirror --servo-pin 18 \
-  --eye-threshold 0.7 \
-  --mouth-threshold 0.7
+  --eye-threshold 0.9 \
+  --mouth-threshold 0.9
 ```
 
 Head-drop detection is disabled by default. Enable it only if you want to use
