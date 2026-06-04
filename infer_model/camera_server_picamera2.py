@@ -84,6 +84,8 @@ class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Serve Picamera2 as MJPEG")
+    parser.add_argument("--list-cameras", action="store_true")
+    parser.add_argument("--camera-index", type=int, default=0)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--width", type=int, default=640)
@@ -93,14 +95,31 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def list_cameras() -> None:
+    cameras = Picamera2.global_camera_info()
+    if not cameras:
+        print("No cameras detected.")
+        return
+    for index, camera in enumerate(cameras):
+        model = camera.get("Model", "unknown")
+        location = camera.get("Location", "unknown")
+        camera_id = camera.get("Id", "unknown")
+        num = camera.get("Num", index)
+        print(f"{index}: Num={num} Model={model} Location={location} Id={camera_id}")
+
+
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
+    if args.list_cameras:
+        list_cameras()
+        return
+
     output = StreamingOutput()
     StreamingHandler.output = output
 
-    picam2 = Picamera2()
+    picam2 = Picamera2(camera_num=args.camera_index)
     config = picam2.create_video_configuration(
         main={"size": (args.width, args.height)},
         controls={"FrameRate": args.fps},
@@ -110,6 +129,7 @@ def main() -> None:
     address = (args.host, args.port)
     httpd = StreamingServer(address, StreamingHandler)
     stream_url = f"http://{args.host}:{args.port}/stream.mjpg"
+    logging.info("Opening camera index %d", args.camera_index)
     logging.info("Starting Picamera2 MJPEG server at %s", stream_url)
 
     recording = False

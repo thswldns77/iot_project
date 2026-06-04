@@ -469,11 +469,29 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--servo-step-sec", type=float, default=1.0)
     parser.add_argument("--servo-min-pulse-width", type=float, default=0.0005)
     parser.add_argument("--servo-max-pulse-width", type=float, default=0.0025)
+
+    parser.add_argument("--ble-alert", action="store_true")
+    parser.add_argument("--ble-device-name", default="DrowsyPi")
+    parser.add_argument("--ble-service-uuid", default="0000d001-0000-1000-8000-00805f9b34fb")
+    parser.add_argument("--ble-characteristic-uuid", default="0000d002-0000-1000-8000-00805f9b34fb")
+    parser.add_argument("--ble-startup-timeout-sec", type=float, default=10.0)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+
+    ble_alert = None
+    if args.ble_alert:
+        from ble_alert import BleAlert
+
+        ble_alert = BleAlert(
+            device_name=args.ble_device_name,
+            service_uuid=args.ble_service_uuid,
+            characteristic_uuid=args.ble_characteristic_uuid,
+            startup_timeout_sec=args.ble_startup_timeout_sec,
+        )
+        ble_alert.start()
 
     eye_model = None
     mouth_model = None
@@ -616,6 +634,8 @@ def main() -> None:
                     status = "CALIBRATING"
 
                 servo.set_active(status == "DROWSY", now)
+                if ble_alert is not None:
+                    ble_alert.set_status(status)
 
                 if args.no_display:
                     if now - previous_log_at >= 1.0:
@@ -665,6 +685,8 @@ def main() -> None:
                     break
     finally:
         servo.close()
+        if ble_alert is not None:
+            ble_alert.stop()
         camera.release()
         if not args.no_display:
             cv2.destroyAllWindows()

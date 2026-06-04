@@ -11,13 +11,15 @@ Personal PC
 Dataset -> MobileNet fine-tuning -> TFLite model export
 
 Raspberry Pi 5
-NoIR camera -> MediaPipe -> TFLite inference -> drowsiness decision -> servo alert
+NoIR/RGB camera -> MediaPipe -> TFLite inference -> drowsiness decision
+-> servo alert and optional BLE phone alert
 ```
 
 ## Directory Structure
 
 ```text
 infer_model/
+  ble_alert.py
   camera_server_picamera2.py
   run_inference.py
   requirements.txt
@@ -50,7 +52,8 @@ Runtime flow:
 6. Accumulate eye closure and yawning states over time
 7. Change status to DROWSY when a condition is sustained
 8. Move the SG90 servo on GPIO 18 when status is DROWSY
-9. Return the servo to 0 degrees when status is not DROWSY
+9. Optionally notify an Android phone over BLE when status changes
+10. Return the servo to 0 degrees when status is not DROWSY
 ```
 
 The system does not classify drowsiness from a single frame. It accumulates
@@ -86,6 +89,10 @@ Filters out momentary blinks and combines sustained visual signals.
 
 SG90 servo
 Moves as an alert output when status is DROWSY.
+
+BLE alert
+Advertises the Raspberry Pi as `DrowsyPi` and notifies an Android app when
+the drowsiness status changes.
 ```
 
 ## Model Output Convention
@@ -128,7 +135,7 @@ If Python 3.11 is already available:
 ```bash
 python3.11 -m venv --system-site-packages .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip setuptools wheel
+python -m pip install setuptools wheel
 python -m pip install -r requirements.txt
 ```
 
@@ -147,7 +154,7 @@ python -m venv .venv
 source .venv/bin/activate
 python --version
 
-python -m pip install --upgrade pip setuptools wheel
+python -m pip install setuptools wheel
 python -m pip install -r requirements.txt
 ```
 
@@ -222,10 +229,26 @@ Terminal 1, without activating `.venv`:
 
 ```bash
 cd ~/iot_project/infer_model
-python3 camera_server_picamera2.py --host 127.0.0.1 --port 8000 --width 640 --height 480 --fps 30
+/usr/bin/python3 camera_server_picamera2.py --host 127.0.0.1 --port 8000 --width 640 --height 480 --fps 30
 ```
 
 Keep Terminal 1 running. Then open another terminal.
+
+If both an RGB camera and a NoIR/IR camera are connected, list the camera
+indices first:
+
+```bash
+cd ~/iot_project/infer_model
+/usr/bin/python3 camera_server_picamera2.py --list-cameras
+```
+
+Then start the MJPEG server with the RGB camera index:
+
+```bash
+/usr/bin/python3 camera_server_picamera2.py --camera-index 0 --host 127.0.0.1 --port 8000 --width 640 --height 480 --fps 30
+```
+
+If index `0` is the NoIR/IR camera, use `--camera-index 1` instead.
 
 Terminal 2, with the Python 3.11 virtual environment:
 
@@ -281,6 +304,66 @@ Wiring notes:
 BCM GPIO 18 = physical pin 12
 Use external 5V power if the servo is unstable
 Connect Raspberry Pi GND and external power GND together
+```
+
+## BLE Phone Alert
+
+Enable this when an Android app should receive drowsiness status changes over
+Bluetooth Low Energy.
+
+BLE convention:
+
+```text
+Device name: DrowsyPi
+Service UUID: 0000d001-0000-1000-8000-00805f9b34fb
+Characteristic UUID: 0000d002-0000-1000-8000-00805f9b34fb
+
+Characteristic value:
+0 = AWAKE
+1 = DROWSY
+2 = NO FACE or CALIBRATING
+```
+
+Check Bluetooth on Raspberry Pi:
+
+```bash
+systemctl status bluetooth
+bluetoothctl
+```
+
+Inside `bluetoothctl`:
+
+```text
+show
+power on
+quit
+```
+
+Test BLE without camera inference:
+
+```bash
+cd ~/iot_project/infer_model
+source .venv/bin/activate
+python ble_alert.py
+```
+
+The test server advertises as `DrowsyPi` and cycles through `AWAKE`, `DROWSY`,
+and `NO FACE`. Use the Android app or a BLE scanner app such as nRF Connect to
+confirm that the service and characteristic are visible.
+
+Run inference with BLE enabled:
+
+```bash
+python run_inference.py --source mjpeg --stream-url http://127.0.0.1:8000/stream.mjpg --mirror --servo-pin 18 --ble-alert
+```
+
+If the Android app uses different UUIDs, pass them at runtime:
+
+```bash
+python run_inference.py --source mjpeg --stream-url http://127.0.0.1:8000/stream.mjpg --mirror --ble-alert \
+  --ble-device-name DrowsyPi \
+  --ble-service-uuid 0000d001-0000-1000-8000-00805f9b34fb \
+  --ble-characteristic-uuid 0000d002-0000-1000-8000-00805f9b34fb
 ```
 
 ## Tuning Options
@@ -349,7 +432,7 @@ Raspberry Pi workflow:
 2. Extract landmarks with MediaPipe
 3. Run TFLite models for eye/mouth state
 4. Combine time-window conditions
-5. Move the servo when status is DROWSY
+5. Move the servo and optionally notify Android over BLE when status is DROWSY
 ```
 
 ## Quick Commands
@@ -366,4 +449,10 @@ Run with trained models:
 
 ```bash
 python run_inference.py --source picamera2 --mirror --servo-pin 18
+```
+
+Run with trained models and Android BLE alert:
+
+```bash
+python run_inference.py --source mjpeg --stream-url http://127.0.0.1:8000/stream.mjpg --mirror --servo-pin 18 --ble-alert
 ```
