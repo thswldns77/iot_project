@@ -26,6 +26,13 @@ import numpy as np
 
 Point = Tuple[float, float]
 
+EYE_DROWSY_WEIGHT = 0.60
+YAWN_DROWSY_WEIGHT = 0.55
+PERCLOS_DROWSY_WEIGHT = 0.55
+HEAD_POSE_DROWSY_WEIGHT = 0.50
+ULTRASONIC_DROWSY_WEIGHT = 0.15
+DROWSY_SCORE_THRESHOLD = 0.50
+
 LEFT_EYE = (33, 160, 158, 133, 153, 144)
 RIGHT_EYE = (362, 385, 387, 263, 373, 380)
 LEFT_EYE_CROP = (33, 133, 159, 145, 160, 144, 158, 153)
@@ -422,6 +429,10 @@ def put_line(frame: np.ndarray, text: str, y: int, color: Tuple[int, int, int]) 
     )
 
 
+def fmt_optional(value: Optional[float]) -> str:
+    return "None" if value is None else f"{value:.1f}"
+
+
 def parse_args() -> argparse.Namespace:
     base_dir = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description="Raspberry Pi drowsiness inference")
@@ -480,6 +491,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+
+    ultrasonic_head = None
+    try:
+        from ultrasonic_head import UltrasonicHeadDetector
+
+        ultrasonic_head = UltrasonicHeadDetector()
+        ultrasonic_head.start()
+    except Exception as exc:
+        print(f"Ultrasonic head detector unavailable: {exc}")
 
     ble_alert = None
     if args.ble_alert:
@@ -564,6 +584,12 @@ def main() -> None:
                 eye_closed = False
                 yawning = False
                 head_down = False
+                ultrasonic_head_down = False
+                ultrasonic_distance_cm = None
+                ultrasonic_baseline_cm = None
+                ultrasonic_delta_cm = None
+                ultrasonic_hold_sec = 0.0
+                ultrasonic_error = None
 
                 if face_found:
                     landmarks = results.multi_face_landmarks[0].landmark
@@ -603,6 +629,15 @@ def main() -> None:
                             mouth_prob = mouth_model.predict_positive(mouth)
                             yawning = mouth_prob >= args.mouth_threshold
 
+                if ultrasonic_head is not None:
+                    ultrasonic_snapshot = ultrasonic_head.snapshot()
+                    ultrasonic_head_down = ultrasonic_snapshot.head_down
+                    ultrasonic_distance_cm = ultrasonic_snapshot.distance_cm
+                    ultrasonic_baseline_cm = ultrasonic_snapshot.baseline_cm
+                    ultrasonic_delta_cm = ultrasonic_snapshot.delta_cm
+                    ultrasonic_hold_sec = ultrasonic_snapshot.hold_sec
+                    ultrasonic_error = ultrasonic_snapshot.error
+
                 eye_hold, yawn_hold, head_hold = timers.update(
                     now,
                     eye_closed,
@@ -620,12 +655,23 @@ def main() -> None:
                     else 0.0
                 )
 
-                drowsy = (
-                    eye_hold >= args.eye_sec
-                    or yawn_hold >= args.yawn_sec
-                    or head_hold >= args.head_sec
-                    or eye_ratio >= args.perclos_threshold
-                )
+                eye_drowsy = eye_hold >= args.eye_sec
+                yawn_drowsy = yawn_hold >= args.yawn_sec
+                perclos_drowsy = eye_ratio >= args.perclos_threshold
+                head_pose_drowsy = head_hold >= args.head_sec
+                drowsy_score = 0.0
+                if eye_drowsy:
+                    drowsy_score += EYE_DROWSY_WEIGHT
+                if yawn_drowsy:
+                    drowsy_score += YAWN_DROWSY_WEIGHT
+                if perclos_drowsy:
+                    drowsy_score += PERCLOS_DROWSY_WEIGHT
+                if head_pose_drowsy:
+                    drowsy_score += HEAD_POSE_DROWSY_WEIGHT
+                if ultrasonic_head_down:
+                    drowsy_score += ULTRASONIC_DROWSY_WEIGHT
+
+                drowsy = drowsy_score >= DROWSY_SCORE_THRESHOLD
 
                 status = "DROWSY" if drowsy else "AWAKE"
                 if not face_found:
@@ -643,7 +689,9 @@ def main() -> None:
                         print(
                             f"{status} fps={fps:.1f} eye={eye_prob:.2f} "
                             f"mouth={mouth_prob:.2f} ear={ear:.3f} mar={mar:.3f} "
-                            f"pitch_delta={delta_pitch:.1f}"
+                            f"pitch_delta={delta_pitch:.1f} "
+                            f"ultra={fmt_optional(ultrasonic_distance_cm)} "
+                            f"score={drowsy_score:.2f}"
                         )
                     continue
 
@@ -674,8 +722,17 @@ def main() -> None:
                 )
                 put_line(
                     frame,
-                    f"PERCLOS-ish {args.window_sec:.0f}s: {eye_ratio:.2f}",
+                    f"Ultrasonic: dist={fmt_optional(ultrasonic_distance_cm)} "
+                    f"base={fmt_optional(ultrasonic_baseline_cm)} "
+                    f"delta={fmt_optional(ultrasonic_delta_cm)} "
+                    f"head={ultrasonic_head_down} hold={ultrasonic_hold_sec:.1f}s",
                     180,
+                    (255, 255, 255) if ultrasonic_error is None else (0, 180, 255),
+                )
+                put_line(
+                    frame,
+                    f"PERCLOS-ish {args.window_sec:.0f}s: {eye_ratio:.2f} score={drowsy_score:.2f}",
+                    210,
                     (255, 255, 255),
                 )
 
@@ -687,6 +744,8 @@ def main() -> None:
         servo.close()
         if ble_alert is not None:
             ble_alert.stop()
+        if ultrasonic_head is not None:
+            ultrasonic_head.stop()
         camera.release()
         if not args.no_display:
             cv2.destroyAllWindows()

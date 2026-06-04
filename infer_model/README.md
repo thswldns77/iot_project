@@ -12,7 +12,7 @@ Dataset -> MobileNet fine-tuning -> TFLite model export
 
 Raspberry Pi 5
 NoIR/RGB camera -> MediaPipe -> TFLite inference -> drowsiness decision
--> servo alert and optional BLE phone alert
+-> ultrasonic head-drop assist -> servo alert and optional BLE phone alert
 ```
 
 ## Directory Structure
@@ -22,6 +22,7 @@ infer_model/
   ble_alert.py
   camera_server_picamera2.py
   run_inference.py
+  ultrasonic_head.py
   requirements.txt
   README.md
   models/
@@ -50,10 +51,11 @@ Runtime flow:
 4. Send eye crops to eye_state_model.tflite
 5. Send mouth crops to mouth_state_model.tflite
 6. Accumulate eye closure and yawning states over time
-7. Change status to DROWSY when a condition is sustained
-8. Move the SG90 servo on GPIO 18 when status is DROWSY
-9. Optionally notify an Android phone over BLE when status changes
-10. Return the servo to 0 degrees when status is not DROWSY
+7. Read HC-SR04 distance and compare it with the calibrated normal-face baseline
+8. Change status to DROWSY when the weighted drowsiness score is high enough
+9. Move the SG90 servo on GPIO 18 when status is DROWSY
+10. Optionally notify an Android phone over BLE when status changes
+11. Return the servo to 0 degrees when status is not DROWSY
 ```
 
 The system does not classify drowsiness from a single frame. It accumulates
@@ -62,12 +64,18 @@ state over a short time window.
 Default drowsiness conditions:
 
 ```text
-Eye closed for 2.0 seconds or longer
-or mouth open/yawn for 3.0 seconds or longer
-or eye-closed ratio over the last 5 seconds is 45% or higher
+Eye closed for 2.0 seconds or longer: +0.60
+Mouth open/yawn for 3.0 seconds or longer: +0.55
+Eye-closed ratio over the last 5 seconds is 45% or higher: +0.55
+MediaPipe head-pose down, only with --enable-head: +0.50
+Ultrasonic head-drop assist: +0.15
+
+DROWSY when score >= 0.50
 ```
 
-Head-drop detection is disabled by default. Add `--enable-head` to use it.
+MediaPipe head-pose detection is disabled by default. Add `--enable-head` to
+use it. The ultrasonic head-drop assist starts automatically and has a low
+weight, so it cannot mark the driver as drowsy by itself.
 
 ## Component Roles
 
@@ -93,6 +101,10 @@ Moves as an alert output when status is DROWSY.
 BLE alert
 Advertises the Raspberry Pi as `DrowsyPi` and notifies an Android app when
 the drowsiness status changes.
+
+HC-SR04 ultrasonic sensor
+Uses the distance between the sensor and the user's face/head as a low-weight
+head-drop assist signal.
 ```
 
 ## Model Output Convention
@@ -271,6 +283,7 @@ Status: AWAKE / DROWSY / NO FACE / CALIBRATING
 Eye prob: probability of eye closed
 Mouth prob: probability of yawn/open mouth
 Pitch delta: head angle change from baseline, only active with --enable-head
+Ultrasonic: distance, baseline, distance delta, and low-weight head-drop state
 PERCLOS-ish: eye-closed ratio over the recent time window
 ```
 
@@ -304,6 +317,64 @@ Wiring notes:
 BCM GPIO 18 = physical pin 12
 Use external 5V power if the servo is unstable
 Connect Raspberry Pi GND and external power GND together
+```
+
+## Ultrasonic Head-Drop Assist
+
+The HC-SR04 ultrasonic sensor is used as a low-weight helper signal. It does not
+decide drowsiness alone.
+
+Default behavior:
+
+```text
+Trigger pin: BCM GPIO 23, physical pin 16
+Echo pin: BCM GPIO 24, physical pin 18
+Baseline time: 3.0 seconds
+Head-drop distance increase: 12 cm
+Hold time: 1.0 second
+Drowsiness score weight: +0.15
+```
+
+Wiring:
+
+```text
+HC-SR04 VCC  -> Raspberry Pi 5V
+HC-SR04 GND  -> Raspberry Pi GND
+HC-SR04 TRIG -> BCM GPIO 23
+HC-SR04 ECHO -> voltage divider -> BCM GPIO 24
+```
+
+The HC-SR04 Echo output is usually 5V, but Raspberry Pi GPIO input is 3.3V.
+Use a voltage divider before connecting Echo to GPIO 24:
+
+```text
+HC-SR04 ECHO ---- 1k ohm ---- GPIO24
+GPIO24 ---------- 2k ohm ---- GND
+```
+
+Test only the ultrasonic sensor:
+
+```bash
+cd ~/iot_project/infer_model
+source .venv/bin/activate
+python ultrasonic_head.py
+```
+
+At startup, sit in the normal position for about 3 seconds. The detector stores
+that distance as the baseline. If the measured distance increases by about 12 cm
+and stays there for at least 1 second, `head_down=True` is reported.
+
+If this error appears:
+
+```text
+Cannot determine SOC peripheral base address
+```
+
+remove old `RPi.GPIO` and use `rpi-lgpio` in the virtual environment:
+
+```bash
+python -m pip uninstall -y RPi.GPIO
+python -m pip install -r requirements.txt
 ```
 
 ## BLE Phone Alert
@@ -431,7 +502,7 @@ Raspberry Pi workflow:
 1. Read NoIR camera frames
 2. Extract landmarks with MediaPipe
 3. Run TFLite models for eye/mouth state
-4. Combine time-window conditions
+4. Combine time-window conditions and ultrasonic low-weight distance signal
 5. Move the servo and optionally notify Android over BLE when status is DROWSY
 ```
 
