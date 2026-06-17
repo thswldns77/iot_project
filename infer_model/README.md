@@ -173,6 +173,23 @@ python -m pip install -r requirements.txt
 
 The two `python --version` checks should both show Python 3.11.x.
 
+If a NumPy 2.x compatibility error appears while loading `tflite-runtime`, reset
+NumPy and OpenCV inside `.venv`:
+
+```bash
+cd ~/iot_project/infer_model
+source .venv/bin/activate
+python -m pip uninstall -y numpy opencv-python tflite-runtime
+python -m pip install -r requirements.txt
+```
+
+Then confirm that NumPy is still 1.x:
+
+```bash
+python -c "import numpy; print(numpy.__version__)"
+python -c "from tflite_runtime.interpreter import Interpreter; print('tflite OK')"
+```
+
 ## Camera Check
 
 Check that the NoIR camera is detected:
