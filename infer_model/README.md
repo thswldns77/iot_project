@@ -67,7 +67,7 @@ state over a short time window.
 Default drowsiness conditions:
 
 ```text
-Eye model closed probability 0.70 or higher for 1.5 seconds or longer: +0.60
+Average closed probability of both eyes is 0.70 or higher for 1.5 seconds or longer: +0.60
 Mouth model yawn probability 0.70 or higher for 2.0 seconds or longer: +0.55
 Eye-closed ratio over the last 5 seconds is 35% or higher: +0.55
 MediaPipe head-pose down, only with --enable-head: +0.50

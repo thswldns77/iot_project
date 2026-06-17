@@ -636,7 +636,7 @@ def main() -> None:
                         if left_eye is not None and right_eye is not None:
                             left_prob = eye_model.predict_positive(left_eye)
                             right_prob = eye_model.predict_positive(right_eye)
-                            eye_prob = max(left_prob, right_prob)
+                            eye_prob = (left_prob + right_prob) / 2.0
                             eye_closed = eye_prob >= args.eye_threshold
                         if mouth is not None:
                             mouth_prob = mouth_model.predict_positive(mouth)
@@ -673,18 +673,25 @@ def main() -> None:
                 perclos_drowsy = eye_ratio >= args.perclos_threshold
                 head_pose_drowsy = head_hold >= args.head_sec
                 drowsy_score = 0.0
+                drowsy_reasons = []
                 if eye_drowsy:
                     drowsy_score += EYE_DROWSY_WEIGHT
+                    drowsy_reasons.append("eye")
                 if yawn_drowsy:
                     drowsy_score += YAWN_DROWSY_WEIGHT
+                    drowsy_reasons.append("yawn")
                 if perclos_drowsy:
                     drowsy_score += PERCLOS_DROWSY_WEIGHT
+                    drowsy_reasons.append("perclos")
                 if head_pose_drowsy:
                     drowsy_score += HEAD_POSE_DROWSY_WEIGHT
+                    drowsy_reasons.append("head")
                 if ultrasonic_head_down:
                     drowsy_score += ULTRASONIC_DROWSY_WEIGHT
+                    drowsy_reasons.append("ultra")
 
                 drowsy = drowsy_score >= DROWSY_SCORE_THRESHOLD
+                drowsy_reason_text = ",".join(drowsy_reasons) if drowsy else "-"
 
                 status = "DROWSY" if drowsy else "AWAKE"
                 if not face_found:
@@ -704,7 +711,7 @@ def main() -> None:
                             f"mouth={mouth_prob:.2f} ear={ear:.3f} mar={mar:.3f} "
                             f"pitch_delta={delta_pitch:.1f} "
                             f"ultra={fmt_optional(ultrasonic_distance_cm)} "
-                            f"score={drowsy_score:.2f}"
+                            f"score={drowsy_score:.2f} reason={drowsy_reason_text}"
                         )
                     continue
 
@@ -746,6 +753,12 @@ def main() -> None:
                     frame,
                     f"PERCLOS-ish {args.window_sec:.0f}s: {eye_ratio:.2f} score={drowsy_score:.2f}",
                     210,
+                    (255, 255, 255),
+                )
+                put_line(
+                    frame,
+                    f"Drowsy reason: {drowsy_reason_text}",
+                    240,
                     (255, 255, 255),
                 )
 
