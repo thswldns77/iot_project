@@ -21,6 +21,7 @@ NoIR/RGB camera -> MediaPipe -> TFLite inference -> drowsiness decision
 infer_model/
   ble_alert.py
   camera_server_picamera2.py
+  main.sh
   run_inference.py
   ultrasonic_head.py
   requirements.txt
@@ -236,6 +237,42 @@ Picamera2 -> local MJPEG stream
 Terminal 2: Python 3.11 .venv
 MJPEG stream -> MediaPipe -> TFLite -> drowsiness decision
 ```
+
+### Run Camera Server And Inference Together
+
+Use `main.sh` when you want to start the Picamera2 MJPEG server and inference
+code with one command.
+
+```bash
+cd ~/iot_project/infer_model
+./main.sh
+```
+
+The script does this automatically:
+
+```text
+1. Start camera_server_picamera2.py with /usr/bin/python3
+2. Wait for the local MJPEG stream to start
+3. Activate .venv
+4. Run run_inference.py with --source mjpeg and --mirror
+```
+
+Pass normal `run_inference.py` options after `./main.sh`:
+
+```bash
+./main.sh --servo-pin 18
+./main.sh --servo-pin 18 --ble-alert
+```
+
+If both an RGB camera and a NoIR/IR camera are connected, choose the camera
+index with `CAMERA_INDEX`:
+
+```bash
+CAMERA_INDEX=1 ./main.sh --servo-pin 18 --ble-alert
+```
+
+The script reuses an already running camera server on the same port. If it
+starts the camera server itself, it stops that server when inference exits.
 
 Terminal 1, without activating `.venv`:
 
