@@ -57,6 +57,8 @@ if ! pgrep -f "camera_server_picamera2.py.*--port ${PORT}" >/dev/null; then
   fi
 fi
 
+source ".venv/bin/activate"
+
 if [[ "$NIGHT_LED" != "0" ]]; then
   night_led_args=(
     --pin "$NIGHT_LED_PIN"
@@ -69,7 +71,7 @@ if [[ "$NIGHT_LED" != "0" ]]; then
     night_led_args+=(--active-low)
   fi
 
-  /usr/bin/python3 "$SCRIPT_DIR/night_led.py" "${night_led_args[@]}" &
+  python "$SCRIPT_DIR/night_led.py" "${night_led_args[@]}" &
   NIGHT_LED_PID="$!"
   sleep 0.5
 
@@ -79,8 +81,6 @@ if [[ "$NIGHT_LED" != "0" ]]; then
     NIGHT_LED_PID=""
   fi
 fi
-
-source ".venv/bin/activate"
 
 python "$SCRIPT_DIR/run_inference.py" \
   --source mjpeg \

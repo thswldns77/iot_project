@@ -192,6 +192,15 @@ python -c "import numpy; print(numpy.__version__)"
 python -c "from tflite_runtime.interpreter import Interpreter; print('tflite OK')"
 ```
 
+If `No module named 'gpiozero'` appears, install the `.venv` requirements again:
+
+```bash
+cd ~/iot_project/infer_model
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -c "import gpiozero; print('gpiozero OK')"
+```
+
 ## Camera Check
 
 Check that the NoIR camera is detected:
