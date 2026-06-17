@@ -392,7 +392,9 @@ When status is `DROWSY`, the servo repeats:
 0 degrees -> 90 degrees -> 0 degrees -> -90 degrees
 ```
 
-When status is not `DROWSY`, the servo returns to 0 degrees.
+When status is not `DROWSY`, the servo returns to 0 degrees and then detaches
+the PWM signal after a short settle time. This reduces idle jitter on SG90-style
+servos.
 
 To make the servo move faster:
 

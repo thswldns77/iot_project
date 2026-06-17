@@ -196,6 +196,7 @@ class ServoAlert:
         self._active = False
         self._index = 0
         self._next_move_at = 0.0
+        self._detach_at = 0.0
         self._center_angle = center_angle
         self._step_sec = step_sec
         self._sequence = [center_angle, sweep_angle, center_angle, -sweep_angle]
@@ -210,6 +211,7 @@ class ServoAlert:
             max_pulse_width=max_pulse_width,
         )
         self._servo.angle = self._center_angle
+        self._detach_at = time.monotonic() + 0.25
 
     def set_active(self, active: bool, now: float) -> None:
         if self._servo is None:
@@ -220,6 +222,7 @@ class ServoAlert:
                 self._active = True
                 self._index = 0
                 self._next_move_at = 0.0
+                self._detach_at = 0.0
             if now >= self._next_move_at:
                 self._servo.angle = self._sequence[self._index]
                 self._index = (self._index + 1) % len(self._sequence)
@@ -231,6 +234,11 @@ class ServoAlert:
             self._index = 0
             self._next_move_at = 0.0
             self._servo.angle = self._center_angle
+            self._detach_at = now + 0.25
+
+        if self._detach_at and now >= self._detach_at:
+            self._servo.detach()
+            self._detach_at = 0.0
 
     def close(self) -> None:
         if self._servo is None:
