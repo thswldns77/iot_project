@@ -461,8 +461,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mouth-model", type=Path, default=base_dir / "models" / "mouth_state_model.tflite")
     parser.add_argument("--eye-closed-index", type=int, default=1)
     parser.add_argument("--mouth-yawn-index", type=int, default=1)
-    parser.add_argument("--eye-threshold", type=float, default=0.8)
-    parser.add_argument("--mouth-threshold", type=float, default=0.8)
+    parser.add_argument("--eye-threshold", type=float, default=0.7)
+    parser.add_argument("--mouth-threshold", type=float, default=0.7)
     parser.add_argument(
         "--input-normalization",
         choices=("zero_one", "minus_one_one", "raw"),
@@ -479,11 +479,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--disable-head", dest="disable_head", action="store_true")
     parser.set_defaults(disable_head=True)
 
-    parser.add_argument("--eye-sec", type=float, default=2.0)
-    parser.add_argument("--yawn-sec", type=float, default=3.0)
+    parser.add_argument("--eye-sec", type=float, default=1.5)
+    parser.add_argument("--yawn-sec", type=float, default=2.0)
     parser.add_argument("--head-sec", type=float, default=1.5)
     parser.add_argument("--window-sec", type=float, default=5.0)
-    parser.add_argument("--perclos-threshold", type=float, default=0.45)
+    parser.add_argument("--perclos-threshold", type=float, default=0.35)
 
     parser.add_argument("--servo-pin", type=int, default=None)
     parser.add_argument("--servo-center-angle", type=float, default=0.0)

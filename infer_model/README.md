@@ -67,9 +67,9 @@ state over a short time window.
 Default drowsiness conditions:
 
 ```text
-Eye closed for 2.0 seconds or longer: +0.60
-Mouth open/yawn for 3.0 seconds or longer: +0.55
-Eye-closed ratio over the last 5 seconds is 45% or higher: +0.55
+Eye model closed probability 0.70 or higher for 1.5 seconds or longer: +0.60
+Mouth model yawn probability 0.70 or higher for 2.0 seconds or longer: +0.55
+Eye-closed ratio over the last 5 seconds is 35% or higher: +0.55
 MediaPipe head-pose down, only with --enable-head: +0.50
 Ultrasonic head-drop assist: +0.15
 
@@ -546,12 +546,13 @@ python run_inference.py --source mjpeg --stream-url http://127.0.0.1:8000/stream
 
 ## Tuning Options
 
-Raise thresholds if the eye or mouth model is too sensitive:
+The default settings are tuned to react quickly during demos. Raise thresholds
+if the eye or mouth model is too sensitive:
 
 ```bash
 python run_inference.py --source picamera2 --mirror --servo-pin 18 \
-  --eye-threshold 0.9 \
-  --mouth-threshold 0.9
+  --eye-threshold 0.8 \
+  --mouth-threshold 0.8
 ```
 
 Head-drop detection is disabled by default. Enable it only if you want to use
@@ -567,9 +568,9 @@ Make the drowsiness decision stricter:
 
 ```bash
 python run_inference.py --source picamera2 --mirror --servo-pin 18 \
-  --eye-sec 2.5 \
-  --yawn-sec 3.5 \
-  --perclos-threshold 0.6
+  --eye-sec 2.0 \
+  --yawn-sec 3.0 \
+  --perclos-threshold 0.45
 ```
 
 Run without a GUI window and print logs instead:
