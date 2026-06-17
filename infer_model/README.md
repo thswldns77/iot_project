@@ -389,8 +389,17 @@ python run_inference.py --source picamera2 --mirror --servo-pin 18
 When status is `DROWSY`, the servo repeats:
 
 ```text
-0 degrees -> 90 degrees -> 0 degrees -> -90 degrees
+90 degrees -> -90 degrees -> 90 degrees
 ```
+
+With the default `--servo-sweep-angle 90`, each alert step moves between the two
+endpoints, so the repeated alert motion is 180 degrees at once. If the servo is
+parked at 0 degrees before the first alert, only the first move starts from the
+center.
+
+After each angle command, the PWM signal is held briefly and then detached
+until the next step. This makes the alert motion closer to discrete clicks
+instead of continuous jitter.
 
 When status is not `DROWSY`, the servo returns to 0 degrees and then detaches
 the PWM signal after a short settle time. This reduces idle jitter on SG90-style
@@ -400,6 +409,13 @@ To make the servo move faster:
 
 ```bash
 python run_inference.py --source picamera2 --mirror --servo-pin 18 --servo-step-sec 0.5
+```
+
+If the servo still jitters between alert steps, reduce how long the PWM signal
+is held after each angle command:
+
+```bash
+python run_inference.py --source picamera2 --mirror --servo-pin 18 --servo-hold-sec 0.2
 ```
 
 Wiring notes:

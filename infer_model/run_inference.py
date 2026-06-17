@@ -191,6 +191,7 @@ class ServoAlert:
         center_angle: float,
         sweep_angle: float,
         step_sec: float,
+        hold_sec: float,
     ) -> None:
         self._servo = None
         self._active = False
@@ -199,7 +200,8 @@ class ServoAlert:
         self._detach_at = 0.0
         self._center_angle = center_angle
         self._step_sec = step_sec
-        self._sequence = [center_angle, sweep_angle, center_angle, -sweep_angle]
+        self._hold_sec = max(hold_sec, 0.05)
+        self._sequence = [sweep_angle, -sweep_angle]
         if pin is None:
             return
 
@@ -211,11 +213,15 @@ class ServoAlert:
             max_pulse_width=max_pulse_width,
         )
         self._servo.angle = self._center_angle
-        self._detach_at = time.monotonic() + 0.25
+        self._detach_at = time.monotonic() + self._hold_sec
 
     def set_active(self, active: bool, now: float) -> None:
         if self._servo is None:
             return
+
+        if self._detach_at and now >= self._detach_at:
+            self._servo.detach()
+            self._detach_at = 0.0
 
         if active:
             if not self._active:
@@ -227,6 +233,7 @@ class ServoAlert:
                 self._servo.angle = self._sequence[self._index]
                 self._index = (self._index + 1) % len(self._sequence)
                 self._next_move_at = now + self._step_sec
+                self._detach_at = now + self._hold_sec
             return
 
         if self._active:
@@ -234,11 +241,7 @@ class ServoAlert:
             self._index = 0
             self._next_move_at = 0.0
             self._servo.angle = self._center_angle
-            self._detach_at = now + 0.25
-
-        if self._detach_at and now >= self._detach_at:
-            self._servo.detach()
-            self._detach_at = 0.0
+            self._detach_at = now + self._hold_sec
 
     def close(self) -> None:
         if self._servo is None:
@@ -486,6 +489,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--servo-center-angle", type=float, default=0.0)
     parser.add_argument("--servo-sweep-angle", type=float, default=90.0)
     parser.add_argument("--servo-step-sec", type=float, default=1.0)
+    parser.add_argument("--servo-hold-sec", type=float, default=0.35)
     parser.add_argument("--servo-min-pulse-width", type=float, default=0.0005)
     parser.add_argument("--servo-max-pulse-width", type=float, default=0.0025)
 
@@ -545,6 +549,7 @@ def main() -> None:
         args.servo_center_angle,
         args.servo_sweep_angle,
         args.servo_step_sec,
+        args.servo_hold_sec,
     )
 
     timers = SignalTimers()
