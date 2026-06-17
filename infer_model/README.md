@@ -22,6 +22,7 @@ infer_model/
   ble_alert.py
   camera_server_picamera2.py
   main.sh
+  night_led.py
   run_inference.py
   ultrasonic_head.py
   requirements.txt
@@ -57,6 +58,7 @@ Runtime flow:
 9. Move the SG90 servo on GPIO 18 when status is DROWSY
 10. Optionally notify an Android phone over BLE when status changes
 11. Return the servo to 0 degrees when status is not DROWSY
+12. Keep the IR/LED illuminator on only during configured night hours
 ```
 
 The system does not classify drowsiness from a single frame. It accumulates
@@ -270,8 +272,9 @@ The script does this automatically:
 ```text
 1. Start camera_server_picamera2.py with /usr/bin/python3
 2. Wait for the local MJPEG stream to start
-3. Activate .venv
-4. Run run_inference.py with --source mjpeg and --mirror
+3. Start night_led.py with /usr/bin/python3
+4. Activate .venv
+5. Run run_inference.py with --source mjpeg and --mirror
 ```
 
 Pass normal `run_inference.py` options after `./main.sh`:
@@ -290,6 +293,29 @@ CAMERA_INDEX=1 ./main.sh --servo-pin 18 --ble-alert
 
 The script reuses an already running camera server on the same port. If it
 starts the camera server itself, it stops that server when inference exits.
+
+By default, `main.sh` controls an IR/LED illuminator on BCM GPIO 17. The LED is
+on from 18:00 to 07:00 and off during daytime. When `main.sh` exits, the LED is
+turned off.
+
+Change the pin or night hours with environment variables:
+
+```bash
+NIGHT_LED_PIN=22 ./main.sh --servo-pin 18
+NIGHT_LED_START_HOUR=19 NIGHT_LED_END_HOUR=6 ./main.sh --servo-pin 18
+```
+
+Disable night LED control:
+
+```bash
+NIGHT_LED=0 ./main.sh --servo-pin 18
+```
+
+If the LED wiring is active-low, use:
+
+```bash
+NIGHT_LED_ACTIVE_LOW=1 ./main.sh --servo-pin 18
+```
 
 Terminal 1, without activating `.venv`:
 
