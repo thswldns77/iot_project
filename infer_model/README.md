@@ -570,8 +570,13 @@ Make the drowsiness decision stricter:
 python run_inference.py --source picamera2 --mirror --servo-pin 18 \
   --eye-sec 2.0 \
   --yawn-sec 3.0 \
-  --perclos-threshold 0.45
+  --perclos-threshold 0.45 \
+  --drowsy-confirm-sec 1.2
 ```
+
+`--drowsy-confirm-sec` adds a final debounce before servo/BLE alerts. This helps
+ignore short blink-only spikes. `--perclos-min-window-sec` keeps PERCLOS disabled
+until enough recent frames have accumulated.
 
 Run without a GUI window and print logs instead:
 

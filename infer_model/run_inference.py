@@ -284,6 +284,38 @@ def held_for(started_at: Optional[float], now: float) -> float:
     return 0.0 if started_at is None else now - started_at
 
 
+@dataclass
+class StatusDebouncer:
+    drowsy_confirm_sec: float
+    awake_confirm_sec: float
+    current_status: str = "AWAKE"
+    candidate_status: str = "AWAKE"
+    candidate_started_at: float = 0.0
+
+    def update(self, candidate_status: str, now: float) -> str:
+        if candidate_status in ("NO FACE", "CALIBRATING"):
+            self.current_status = candidate_status
+            self.candidate_status = candidate_status
+            self.candidate_started_at = now
+            return self.current_status
+
+        if candidate_status != self.candidate_status:
+            self.candidate_status = candidate_status
+            self.candidate_started_at = now
+
+        confirm_sec = (
+            self.drowsy_confirm_sec
+            if candidate_status == "DROWSY"
+            else self.awake_confirm_sec
+        )
+        if (
+            self.current_status != candidate_status
+            and now - self.candidate_started_at >= confirm_sec
+        ):
+            self.current_status = candidate_status
+        return self.current_status
+
+
 def make_camera(args: argparse.Namespace):
     if args.source == "picamera2":
         return PiCameraSource(args.width, args.height, args.fps)
@@ -483,7 +515,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--yawn-sec", type=float, default=2.0)
     parser.add_argument("--head-sec", type=float, default=1.5)
     parser.add_argument("--window-sec", type=float, default=5.0)
+    parser.add_argument("--perclos-min-window-sec", type=float, default=3.0)
     parser.add_argument("--perclos-threshold", type=float, default=0.35)
+    parser.add_argument("--drowsy-confirm-sec", type=float, default=0.8)
+    parser.add_argument("--awake-confirm-sec", type=float, default=0.2)
 
     parser.add_argument("--servo-pin", type=int, default=None)
     parser.add_argument("--servo-center-angle", type=float, default=0.0)
@@ -553,6 +588,10 @@ def main() -> None:
     )
 
     timers = SignalTimers()
+    status_debouncer = StatusDebouncer(
+        args.drowsy_confirm_sec,
+        args.awake_confirm_sec,
+    )
     history: Deque[Tuple[float, bool, bool, bool]] = collections.deque()
     calibration_started_at: Optional[float] = None
     calibration_pitches = []
@@ -667,10 +706,14 @@ def main() -> None:
                     if history
                     else 0.0
                 )
+                history_span = now - history[0][0] if history else 0.0
 
                 eye_drowsy = eye_hold >= args.eye_sec
                 yawn_drowsy = yawn_hold >= args.yawn_sec
-                perclos_drowsy = eye_ratio >= args.perclos_threshold
+                perclos_drowsy = (
+                    history_span >= args.perclos_min_window_sec
+                    and eye_ratio >= args.perclos_threshold
+                )
                 head_pose_drowsy = head_hold >= args.head_sec
                 drowsy_score = 0.0
                 drowsy_reasons = []
@@ -693,11 +736,13 @@ def main() -> None:
                 drowsy = drowsy_score >= DROWSY_SCORE_THRESHOLD
                 drowsy_reason_text = ",".join(drowsy_reasons) if drowsy else "-"
 
-                status = "DROWSY" if drowsy else "AWAKE"
+                candidate_status = "DROWSY" if drowsy else "AWAKE"
                 if not face_found:
-                    status = "NO FACE"
+                    candidate_status = "NO FACE"
                 elif not args.disable_head and baseline_pitch is None:
-                    status = "CALIBRATING"
+                    candidate_status = "CALIBRATING"
+
+                status = status_debouncer.update(candidate_status, now)
 
                 servo.set_active(status == "DROWSY", now)
                 if ble_alert is not None:
@@ -751,7 +796,8 @@ def main() -> None:
                 )
                 put_line(
                     frame,
-                    f"PERCLOS-ish {args.window_sec:.0f}s: {eye_ratio:.2f} score={drowsy_score:.2f}",
+                    f"PERCLOS-ish {history_span:.1f}/{args.window_sec:.0f}s: "
+                    f"{eye_ratio:.2f} score={drowsy_score:.2f}",
                     210,
                     (255, 255, 255),
                 )
