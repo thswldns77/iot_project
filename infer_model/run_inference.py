@@ -487,7 +487,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--servo-pin", type=int, default=None)
     parser.add_argument("--servo-center-angle", type=float, default=0.0)
-    parser.add_argument("--servo-sweep-angle", type=float, default=90.0)
+    parser.add_argument("--servo-sweep-angle", type=float, default=50.0)
     parser.add_argument("--servo-step-sec", type=float, default=1.0)
     parser.add_argument("--servo-hold-sec", type=float, default=0.35)
     parser.add_argument("--servo-min-pulse-width", type=float, default=0.0005)

@@ -389,11 +389,11 @@ python run_inference.py --source picamera2 --mirror --servo-pin 18
 When status is `DROWSY`, the servo repeats:
 
 ```text
-90 degrees -> -90 degrees -> 90 degrees
+50 degrees -> -50 degrees -> 50 degrees
 ```
 
-With the default `--servo-sweep-angle 90`, each alert step moves between the two
-endpoints, so the repeated alert motion is 180 degrees at once. If the servo is
+With the default `--servo-sweep-angle 50`, each alert step moves between the two
+endpoints, so the repeated alert motion is 100 degrees at once. If the servo is
 parked at 0 degrees before the first alert, only the first move starts from the
 center.
 
